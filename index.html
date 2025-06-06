@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Catcher</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f8ff;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background: #fff;
+      margin: 0 auto;
+      touch-action: none;
+    }
+    #info, #startScreen, #gameOverScreen {
+      text-align: center;
+      padding: 10px;
+      font-size: 20px;
+    }
+    #startScreen input {
+      padding: 5px;
+      font-size: 16px;
+    }
+    #startScreen button, #gameOverScreen button {
+      padding: 8px 15px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    #gameOverScreen {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h2>Enter your name to start</h2>
+    <input type="text" id="playerName" placeholder="Your Name" />
+    <br />
+    <button onclick="startGame()">Start Game</button>
+  </div>
+
+  <div id="info" style="display: none;">
+    Catch only <strong id="targetColor">blue</strong> shapes!
+    <div>Score: <span id="scoreDisplay">0</span> | Level: <span id="levelDisplay">1</span> | Mistakes: <span id="mistakesDisplay">0</span></div>
+  </div>
+
+  <canvas id="gameCanvas" width="400" height="600" style="display: none;"></canvas>
+
+  <div id="gameOverScreen">
+    <h2>Game Over!</h2>
+    <p id="finalResult"></p>
+    <button onclick="location.reload()">Play Again</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const colors = ["red", "blue", "green", "yellow"];
+
+    let targetColor;
+    let playerName = "";
+    let score = 0;
+    let level = 1;
+    let mistakes = 0;
+    let basketWidth = 50;
+    let shapes = [];
+    let gameInterval;
+    let shapeSpeed = 2;
+
+    const basket = {
+      x: 175,
+      y: 550,
+      width: basketWidth,
+      height: 20,
+      color: "black",
+      speed: 5
+    };
+
+    function getRandomColor() {
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function updateTargetColor() {
+      targetColor = getRandomColor();
+      document.getElementById("targetColor").textContent = targetColor;
+    }
+
+    function startGame() {
+      playerName = document.getElementById("playerName").value.trim();
+      if (!playerName) {
+        alert("Please enter your name.");
+        return;
+      }
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("info").style.display = "block";
+      document.getElementById("gameCanvas").style.display = "block";
+      updateTargetColor();
+      gameLoop();
+      gameInterval = setInterval(createShape, 1000);
+    }
+
+    function createShape() {
+      const color = getRandomColor();
+      const x = Math.random() * (canvas.width - 30);
+      shapes.push({ x, y: 0, size: 30, color, missed: false });
+    }
+
+    function drawBasket() {
+      ctx.fillStyle = basket.color;
+      ctx.fillRect(basket.x, basket.y, basket.width, basket.height);
+    }
+
+    function drawShapes() {
+      shapes.forEach(shape => {
+        ctx.fillStyle = shape.color;
+        ctx.beginPath();
+        ctx.arc(shape.x + shape.size / 2, shape.y + shape.size / 2, shape.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function updateShapes() {
+      shapes.forEach(shape => shape.y += shapeSpeed);
+
+      shapes = shapes.filter(shape => {
+        const caught =
+          shape.y + shape.size >= basket.y &&
+          shape.x + shape.size >= basket.x &&
+          shape.x <= basket.x + basket.width;
+
+        if (caught) {
+          if (shape.color === targetColor) {
+            score++;
+            if (score % 10 === 0) {
+              level++;
+              basket.width *= 2;
+              basket.width = Math.min(basket.width, canvas.width);
+              shapeSpeed += 1;
+              document.getElementById("levelDisplay").textContent = level;
+              updateTargetColor();
+            }
+          } else {
+            mistakes++;
+          }
+        } else if (shape.y + shape.size > canvas.height && shape.color === targetColor && !shape.missed) {
+          shape.missed = true;
+          mistakes++;
+        }
+
+        if (mistakes >= 4) {
+          endGame();
+        }
+
+        return shape.y < canvas.height && !caught;
+      });
+
+      document.getElementById("scoreDisplay").textContent = score;
+      document.getElementById("mistakesDisplay").textContent = mistakes;
+    }
+
+    function endGame() {
+      clearInterval(gameInterval);
+      document.getElementById("gameCanvas").style.display = "none";
+      document.getElementById("info").style.display = "none";
+      document.getElementById("gameOverScreen").style.display = "block";
+      document.getElementById("finalResult").textContent = `${playerName}, your final score is ${score} at level ${level}.`;
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBasket();
+      drawShapes();
+      updateShapes();
+      if (mistakes < 4) requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowLeft" && basket.x > 0) {
+        basket.x -= basket.speed * 5;
+      } else if (e.key === "ArrowRight" && basket.x + basket.width < canvas.width) {
+        basket.x += basket.speed * 5;
+      }
+    });
+
+    canvas.addEventListener("touchmove", e => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const touchX = touch.clientX - rect.left;
+      basket.x = touchX - basket.width / 2;
+
+      if (basket.x < 0) basket.x = 0;
+      if (basket.x + basket.width > canvas.width) basket.x = canvas.width - basket.width;
+    }, { passive: false });
+  </script>
+</body>
+</html>
